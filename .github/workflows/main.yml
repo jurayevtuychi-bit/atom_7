@@ -1,0 +1,69 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Repozitoriyni yuklab olish
+        uses: actions/checkout@v4
+
+      - name: Node.js muhitini sozlash
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Java JDK 17 ni sozlash
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Loyiha strukturasini tayyorlash va qaramliklarni o'rnatish
+        run: |
+          # Agar index.html asosiy papkada bo'lsa, www/ papkaga ko'chirish
+          if [ ! -d "www" ]; then
+            mkdir -p www
+          fi
+          if [ -f "index.html" ] && [ ! -f "www/index.html" ]; then
+            cp index.html www/index.html
+          fi
+
+          # Agar package.json bo'lmasa, avtomatik yaratish
+          if [ ! -f "package.json" ]; then
+            echo '{"name":"atom-fizikasi","version":"1.0.0","private":true}' > package.json
+          fi
+
+          # Agar capacitor.config.json bo'lmasa, avtomatik yaratish
+          if [ ! -f "capacitor.config.json" ]; then
+            echo '{"appId":"uz.tabiiyfanlar.atomfizikasi","appName":"Atom Fizikasi","webDir":"www","bundledWebRuntime":false}' > capacitor.config.json
+          fi
+
+          # Capacitor kutubxonalarini o'rnatish
+          npm install @capacitor/core@5.7.0 @capacitor/cli@5.7.0 @capacitor/android@5.7.0
+
+      - name: Android platformasini yaratish va sinxronlash
+        run: |
+          if [ ! -d "android" ]; then
+            npx cap add android
+          fi
+          npx cap sync android
+
+      - name: Gradle orqali APK yig'ish (assembleDebug)
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Tayyor APK faylini saqlash (Upload Artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: AtomFizikasi-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: warn
